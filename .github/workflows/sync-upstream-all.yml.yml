@@ -1,0 +1,54 @@
+name: Sync upstream branches and tags
+
+on:
+  schedule:
+    - cron: '* */24 * * *' # 每24小时触发一次
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git
+          git fetch upstream --prune --tags
+
+      - name: Sync all branches (fail on conflict)
+        run: |
+          set -e
+
+          for branch in $(git branch -r | grep '^  upstream/' | grep -v 'HEAD' | sed 's|  upstream/||'); do
+            echo "🔄 Syncing branch: $branch"
+
+            # fork 中已存在该分支
+            if git show-ref --verify --quiet refs/heads/$branch; then
+              git checkout $branch
+
+              # 使用 merge；一旦冲突立即失败
+              git merge upstream/$branch --no-edit || {
+                echo "❌ Merge conflict on branch: $branch"
+                exit 1
+              }
+            else
+              # fork 中不存在该分支，直接创建
+              git checkout -b $branch upstream/$branch
+            fi
+
+            git push origin $branch
+          done
+
+      - name: Sync tags
+        run: |
+          git push origin --tags
