@@ -23,33 +23,49 @@ jobs:
 
       - name: Add upstream and fetch
         run: |
+          set -e
           git remote add upstream https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git
+
+          echo "📥 Fetch origin..."
+          git fetch origin --prune
+
+          echo "📥 Fetch upstream branches and tags..."
           git fetch upstream --prune --tags
 
       - name: Sync all branches (fail on conflict)
         run: |
           set -e
 
+          # 遍历 upstream 的所有分支名
           for branch in $(git branch -r | grep '^  upstream/' | grep -v 'HEAD' | sed 's|  upstream/||'); do
             echo "🔄 Syncing branch: $branch"
 
-            # fork 中已存在该分支
-            if git show-ref --verify --quiet refs/heads/$branch; then
-              git checkout $branch
+            # 如果 origin 远端存在该分支，则以 origin 为基底进行 merge
+            if git show-ref --verify --quiet refs/remotes/origin/$branch; then
+              echo "✅ Branch exists on origin: $branch"
 
-              # 使用 merge；一旦冲突立即失败
+              # 用 origin 分支作为本地分支基底
+              git checkout -B $branch origin/$branch
+
+              # merge upstream 分支（冲突则失败退出）
               git merge upstream/$branch --no-edit || {
                 echo "❌ Merge conflict on branch: $branch"
                 exit 1
               }
+
             else
-              # fork 中不存在该分支，直接创建
-              git checkout -b $branch upstream/$branch
+              echo "🆕 Branch does not exist on origin, creating from upstream: $branch"
+
+              # origin 不存在 -> 直接从 upstream 创建本地分支
+              git checkout -B $branch upstream/$branch
             fi
 
+            echo "🚀 Pushing branch: $branch"
             git push origin $branch
           done
 
       - name: Sync tags
         run: |
+          set -e
+          echo "🏷️ Syncing tags..."
           git push origin --tags
