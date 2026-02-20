@@ -32,12 +32,17 @@ jobs:
           echo "📥 Fetch upstream branches and tags..."
           git fetch upstream --prune --tags
 
-      - name: Sync all branches (fail on conflict)
+      - name: Sync all branches (skip dependabot)
         run: |
           set -e
 
-          # 遍历 upstream 的所有分支名
-          for branch in $(git branch -r | grep '^  upstream/' | grep -v 'HEAD' | sed 's|  upstream/||'); do
+          # 遍历 upstream 的所有分支名（排除 HEAD 和 dependabot 分支）
+          for branch in $(git branch -r \
+            | grep '^  upstream/' \
+            | grep -v 'HEAD' \
+            | grep -v 'dependabot' \
+            | sed 's|  upstream/||'); do
+
             echo "🔄 Syncing branch: $branch"
 
             # 如果 origin 远端存在该分支，则以 origin 为基底进行 merge
